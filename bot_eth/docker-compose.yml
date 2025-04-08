@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  market_maker:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    restart: always

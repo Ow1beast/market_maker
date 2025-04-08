@@ -1,0 +1,6 @@
+python-binance
+requests
+aiohttp
+python-dotenv
+loguru
+python-telegram-bot==13.15
