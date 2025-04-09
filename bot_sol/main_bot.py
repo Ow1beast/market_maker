@@ -14,45 +14,57 @@ from bot_commands import run_bot, get_balance, place_grid_orders
 
 # === Загрузка .env ===
 load_dotenv()
-API_KEY = os.getenv("LIVE_API_KEY")
-API_SECRET = os.getenv("LIVE_API_SECRET")
+
+# === Универсальная инициализация клиентов ===
+clients = {}
+modes = {}
+symbols = os.getenv("SYMBOLS", "BTCUSDT,SOLUSDT").split(',')
+
+for symbol in symbols:
+    api_key = os.getenv(f"{symbol}_API_KEY")
+    api_secret = os.getenv(f"{symbol}_API_SECRET")
+    trade_mode = os.getenv(f"{symbol}_MODE", "spot").lower()
+    client = Client(api_key, api_secret)
+
+    if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
+        if trade_mode == "futures":
+            client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+        else:
+            client.API_URL = "https://testnet.binance.vision/api"
+
+    clients[symbol] = client
+    modes[symbol] = trade_mode
+
 TG_TOKEN = os.getenv("TG_TOKEN")
-TG_CHAT_ID = os.getenv("TG_CHAT_ID")
-TRADE_MODE = os.getenv("TRADE_MODE", "futures").lower()
-SYMBOL = 'BTCUSDT'
-BASE_SPREAD = 0.0004
-ORDER_PCT = 0.1
-INTERVAL = 5
+ORDER_PCT = float(os.getenv("ORDER_PCT", "0.1"))
+INTERVAL = int(os.getenv("INTERVAL", "5"))
 TAKE_PROFIT = float(os.getenv("TAKE_PROFIT", "99999"))
 STOP_LOSS = float(os.getenv("STOP_LOSS", "-99999"))
-TRADE_LOG_FILE = os.getenv("TRADE_LOG_FILE", "last_trade_id.txt")
-SYSTEMD_SERVICE = os.getenv("SYSTEMD_SERVICE", "marketmaker.service")
 
-client = Client(API_KEY, API_SECRET)
-
-if os.getenv("TESTNET") == "true":
-    if TRADE_MODE == "futures":
-        client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
-    else:
-        client.API_URL = "https://testnet.binance.vision/api"
-
-os.makedirs("logs", exist_ok=True)
-log_file = f"logs/{datetime.now().strftime('%Y-%m-%d')}_{TRADE_MODE}.log"
-logger.add(log_file, rotation="5 MB", retention="7 days", encoding='utf-8')
+# === PnL-состояние для каждого символа ===
+session_start_ids = {}
+session_trades = {}
 
 # === Telegram ===
 def send_telegram(message):
-    if not TG_TOKEN or not TG_CHAT_ID:
+    chat_id = os.getenv("TG_CHAT_ID")
+    if not TG_TOKEN or not chat_id:
         return
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     try:
-        requests.post(url, data={"chat_id": TG_CHAT_ID, "text": message})
+        requests.post(url, data={"chat_id": chat_id, "text": message})
     except Exception as e:
         logger.error(f"[Telegram] Ошибка: {e}")
 
-# === Получение рыночных данных ===
-async def get_order_book():
-    url = f'wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@depth5@100ms' if TRADE_MODE == 'spot' else f'wss://fstream.binance.com/ws/{SYMBOL.lower()}@depth5@100ms'
+# === Получение стакана ===
+async def get_order_book(symbol, trade_mode, use_testnet):
+    if use_testnet:
+        url = f'wss://stream.binance.vision/ws/{symbol.lower()}@depth5@100ms' if trade_mode == 'spot' \
+              else f'wss://stream.binancefuture.com/ws/{symbol.lower()}@depth5@100ms'
+    else:
+        url = f'wss://stream.binance.com:9443/ws/{symbol.lower()}@depth5@100ms' if trade_mode == 'spot' \
+              else f'wss://fstream.binance.com/ws/{symbol.lower()}@depth5@100ms'
+
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(url) as ws:
             async for msg in ws:
@@ -61,106 +73,103 @@ async def get_order_book():
                 ask = float(data['asks'][0][0])
                 return bid, ask
 
-def calculate_order_amount(price):
-    usdt = get_balance()
-    return round((usdt * ORDER_PCT) / price, 3)
-
-# === Ордеры ===
-def cancel_orders():
-    if TRADE_MODE == 'spot':
-        orders = client.get_open_orders(symbol=SYMBOL)
-        for o in orders:
-            client.cancel_order(symbol=SYMBOL, orderId=o['orderId'])
-    else:
-        client.futures_cancel_all_open_orders(symbol=SYMBOL)
-    logger.info("[Ордера] Все заявки отменены")
-
 # === PnL логика ===
-def get_last_trade_id():
-    if os.path.exists(TRADE_LOG_FILE):
-        with open(TRADE_LOG_FILE, "r") as f:
+def get_last_trade_id(symbol):
+    file = f"last_trade_id_{symbol}.txt"
+    if os.path.exists(file):
+        with open(file, "r") as f:
             return int(f.read())
     return 0
 
-def save_last_trade_id(trade_id):
-    with open(TRADE_LOG_FILE, "w") as f:
+def save_last_trade_id(symbol, trade_id):
+    with open(f"last_trade_id_{symbol}.txt", "w") as f:
         f.write(str(trade_id))
 
-SESSION_START_ID = get_last_trade_id()
-SESSION_TRADES = []
+def track_trades_and_pnl(symbol):
+    client = clients[symbol]
+    trade_mode = modes[symbol]
 
-def track_trades_and_pnl():
-    global SESSION_TRADES
-    trades = client.get_my_trades(symbol=SYMBOL) if TRADE_MODE == 'spot' else client.futures_account_trades(symbol=SYMBOL)
-    last_saved_id = get_last_trade_id()
+    trades = client.get_my_trades(symbol=symbol) if trade_mode == 'spot' else client.futures_account_trades(symbol=symbol)
+    last_saved_id = get_last_trade_id(symbol)
     new_trades = [t for t in trades if t['id'] > last_saved_id]
     if not new_trades:
         return
-    save_last_trade_id(new_trades[-1]['id'])
+    save_last_trade_id(symbol, new_trades[-1]['id'])
+
+    if symbol not in session_trades:
+        session_trades[symbol] = []
 
     total_buy = total_sell = qty_buy = qty_sell = 0
     for t in new_trades:
         qty = float(t['qty'])
         price = float(t['price'])
         cost = qty * price
-        if t['isBuyer'] if TRADE_MODE == 'spot' else t['side'] == 'BUY':
+        is_buy = t['isBuyer'] if trade_mode == 'spot' else t['side'] == 'BUY'
+        if is_buy:
             total_buy += cost
             qty_buy += qty
         else:
             total_sell += cost
             qty_sell += qty
-        if t['id'] >= SESSION_START_ID:
-            side = 'BUY' if (t['isBuyer'] if TRADE_MODE == 'spot' else t['side'] == 'BUY') else 'SELL'
-            save_trade(t['id'], TRADE_MODE, SYMBOL, side, float(t['price']), float(t['qty']))
-            SESSION_TRADES.append(t)
+        if t['id'] >= session_start_ids[symbol]:
+            side = 'BUY' if is_buy else 'SELL'
+            save_trade(t['id'], trade_mode, symbol, side, float(t['price']), float(t['qty']))
+            session_trades[symbol].append(t)
 
-    session_buy = session_sell = session_qty_buy = session_qty_sell = 0
-    for t in SESSION_TRADES:
+    sb = ss = sqb = sqs = 0
+    for t in session_trades[symbol]:
         qty = float(t['qty'])
         price = float(t['price'])
         cost = qty * price
-        if t['isBuyer'] if TRADE_MODE == 'spot' else t['side'] == 'BUY':
-            session_buy += cost
-            session_qty_buy += qty
+        is_buy = t['isBuyer'] if trade_mode == 'spot' else t['side'] == 'BUY'
+        if is_buy:
+            sb += cost
+            sqb += qty
         else:
-            session_sell += cost
-            session_qty_sell += qty
+            ss += cost
+            sqs += qty
 
-    session_pnl = session_sell - session_buy
+    pnl = ss - sb
     msg = (
-        f"[Сессия PnL]\n"
-        f"Покупка: {session_qty_buy:.4f} на {session_buy:.2f} USDT\n"
-        f"Продажа: {session_qty_sell:.4f} на {session_sell:.2f} USDT\n"
-        f"→ PnL сессии: {session_pnl:.2f} USDT"
+        f"[{symbol}] Сессия PnL\n"
+        f"Покупка: {sqb:.4f} на {sb:.2f} USDT\n"
+        f"Продажа: {sqs:.4f} на {ss:.2f} USDT\n"
+        f"→ PnL: {pnl:.2f} USDT"
     )
     logger.info(msg)
     send_telegram(msg)
 
-    if session_pnl >= TAKE_PROFIT:
-        send_telegram(f"[STOP] Достигнут профит {session_pnl:.2f} USDT — бот остановлен")
+    if pnl >= TAKE_PROFIT:
+        send_telegram(f"[STOP {symbol}] Профит достигнут: {pnl:.2f} USDT")
         exit(0)
-    if session_pnl <= STOP_LOSS:
-        send_telegram(f"[STOP] Достигнут лимит убытка {session_pnl:.2f} USDT — бот остановлен")
+    if pnl <= STOP_LOSS:
+        send_telegram(f"[STOP {symbol}] Убыток достигнут: {pnl:.2f} USDT")
         exit(0)
 
-# === Основной цикл ===
-async def main_loop():
+# === Основной цикл по символу ===
+async def run_symbol(symbol):
+    client = clients[symbol]
+    trade_mode = modes[symbol]
+    use_testnet = os.getenv(f"{symbol}_TESTNET", "false").lower() == "true"
+
+    session_start_ids[symbol] = get_last_trade_id(symbol)
+
     while True:
         try:
-            bid, ask = await get_order_book()
-            cancel_orders()
+            bid, ask = await get_order_book(symbol, trade_mode, use_testnet)
             mid_price = (bid + ask) / 2
-            place_grid_orders(mid_price)
-            track_trades_and_pnl()
+            place_grid_orders(client, trade_mode, symbol, mid_price, ORDER_PCT)
+            track_trades_and_pnl(symbol)
             await asyncio.sleep(INTERVAL)
         except Exception as e:
-            logger.error(f"[Ошибка] {e}")
-            send_telegram(f"[Ошибка] {e}")
+            logger.error(f"[{symbol}] Ошибка: {e}")
             await asyncio.sleep(5)
 
+# === Запуск Telegram и торговли ===
 if __name__ == '__main__':
     init_db()
-    logger.info(f"[Старт] Бот запущен в режиме {TRADE_MODE.upper()}")
-    send_telegram(f"Маркет-мейкер запущен. Режим: {TRADE_MODE.upper()}, trade_id: {SESSION_START_ID}")
-    Thread(target=run_bot, args=(client, TRADE_MODE)).start()
-    asyncio.run(main_loop())
+    logger.info(f"[Старт] Универсальный Telegram-бот запущен для: {', '.join(symbols)}")
+    Thread(target=run_bot, args=(TG_TOKEN, clients, modes)).start()
+    loop = asyncio.get_event_loop()
+    tasks = [run_symbol(symbol) for symbol in symbols]
+    loop.run_until_complete(asyncio.gather(*tasks))
