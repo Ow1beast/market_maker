@@ -10,7 +10,7 @@ from datetime import datetime
 from loguru import logger
 from db import init_db, save_trade
 from threading import Thread
-from bot_commands import run_bot
+from bot_commands import run_bot, get_balance, place_grid_orders
 
 # === Загрузка .env ===
 load_dotenv()
@@ -29,6 +29,12 @@ TRADE_LOG_FILE = os.getenv("TRADE_LOG_FILE", "last_trade_id.txt")
 SYSTEMD_SERVICE = os.getenv("SYSTEMD_SERVICE", "marketmaker.service")
 
 client = Client(API_KEY, API_SECRET)
+
+if os.getenv("TESTNET") == "true":
+    if TRADE_MODE == "futures":
+        client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+    else:
+        client.API_URL = "https://testnet.binance.vision/api"
 
 os.makedirs("logs", exist_ok=True)
 log_file = f"logs/{datetime.now().strftime('%Y-%m-%d')}_{TRADE_MODE}.log"
@@ -55,18 +61,6 @@ async def get_order_book():
                 ask = float(data['asks'][0][0])
                 return bid, ask
 
-# === Баланс и объём ===
-def get_balance():
-    if TRADE_MODE == 'spot':
-        balance = client.get_asset_balance(asset='USDT')
-        return float(balance['free'])
-    else:
-        balances = client.futures_account_balance()
-        for b in balances:
-            if b['asset'] == 'USDT':
-                return float(b['balance'])
-        return 0.0
-
 def calculate_order_amount(price):
     usdt = get_balance()
     return round((usdt * ORDER_PCT) / price, 3)
@@ -80,23 +74,6 @@ def cancel_orders():
     else:
         client.futures_cancel_all_open_orders(symbol=SYMBOL)
     logger.info("[Ордера] Все заявки отменены")
-
-def place_orders(bid, ask):
-    mid_price = (bid + ask) / 2
-    spread = max(mid_price * BASE_SPREAD, 0.5)
-    buy_price = round(mid_price - spread, 1)
-    sell_price = round(mid_price + spread, 1)
-    qty = calculate_order_amount(mid_price)
-
-    if TRADE_MODE == 'spot':
-        client.order_limit_buy(symbol=SYMBOL, quantity=qty, price=str(buy_price))
-        client.order_limit_sell(symbol=SYMBOL, quantity=qty, price=str(sell_price))
-    else:
-        client.futures_create_order(symbol=SYMBOL, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
-        client.futures_create_order(symbol=SYMBOL, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
-
-    logger.info(f"[Ордера] BUY {buy_price}, SELL {sell_price}, QTY {qty}")
-    send_telegram(f"[{TRADE_MODE.upper()}] BUY {buy_price}, SELL {sell_price}, QTY {qty}")
 
 # === PnL логика ===
 def get_last_trade_id():
@@ -172,7 +149,8 @@ async def main_loop():
         try:
             bid, ask = await get_order_book()
             cancel_orders()
-            place_orders(bid, ask)
+            mid_price = (bid + ask) / 2
+            place_grid_orders(mid_price)
             track_trades_and_pnl()
             await asyncio.sleep(INTERVAL)
         except Exception as e:
@@ -184,5 +162,5 @@ if __name__ == '__main__':
     init_db()
     logger.info(f"[Старт] Бот запущен в режиме {TRADE_MODE.upper()}")
     send_telegram(f"Маркет-мейкер запущен. Режим: {TRADE_MODE.upper()}, trade_id: {SESSION_START_ID}")
-    Thread(target=run_bot).start()
+    Thread(target=run_bot, args=(client, TRADE_MODE)).start()
     asyncio.run(main_loop())
