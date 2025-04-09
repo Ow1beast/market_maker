@@ -2,6 +2,8 @@ from telegram.ext import Updater, CommandHandler
 from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
+import sys
+from main_bot import get_balance, TRADE_MODE
 
 def start(update, context):
     update.message.reply_text("Команды: /status /pnl_today /pnl_table /restart")
