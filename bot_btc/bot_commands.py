@@ -3,15 +3,17 @@ from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
 import sys
-from main_bot import get_balance, TRADE_MODE
+
+# Эти переменные мы передадим извне
+client = None
+TRADE_MODE = None
 
 def start(update, context):
-    update.message.reply_text("Команды: /status /pnl_today /pnl_table /restart")
+    update.message.reply_text("Команды: /status /pnl_today /pnl_table /balance /restart")
 
 def pnl_today(update, context):
     pnl, count = get_today_pnl()
-    msg = f"Сегодняшний PnL: {pnl:.2f} USDT\nСделок: {count}"
-    update.message.reply_text(msg)
+    update.message.reply_text(f"Сегодняшний PnL: {pnl:.2f} USDT\nСделок: {count}")
 
 def pnl_table(update, context):
     rows = get_pnl_history(7)
@@ -23,6 +25,17 @@ def pnl_table(update, context):
         pnl_fmt = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
         msg += f"{date_str}  |  {pnl_fmt} USDT\n"
     update.message.reply_text(msg)
+
+def get_balance():
+    if TRADE_MODE == 'spot':
+        balance = client.get_asset_balance(asset='USDT')
+        return float(balance['free'])
+    else:
+        balances = client.futures_account_balance()
+        for b in balances:
+            if b['asset'] == 'USDT':
+                return float(b['balance'])
+        return 0.0
 
 def status(update, context):
     update.message.reply_text("✅ Бот работает.")
@@ -42,7 +55,12 @@ def balance(update, context):
     except Exception as e:
         update.message.reply_text(f"❌ Ошибка при получении баланса: {e}")
 
-def run_bot():
+# ✅ Теперь run_bot принимает client и TRADE_MODE
+def run_bot(binance_client, trade_mode):
+    global client, TRADE_MODE
+    client = binance_client
+    TRADE_MODE = trade_mode
+
     token = os.getenv("TG_TOKEN")
     updater = Updater(token, use_context=True)
     dp = updater.dispatcher
@@ -55,4 +73,3 @@ def run_bot():
     dp.add_handler(CommandHandler("balance", balance))
 
     updater.start_polling()
-    updater.idle()

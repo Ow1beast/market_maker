@@ -61,18 +61,6 @@ async def get_order_book():
                 ask = float(data['asks'][0][0])
                 return bid, ask
 
-# === Баланс и объём ===
-def get_balance():
-    if TRADE_MODE == 'spot':
-        balance = client.get_asset_balance(asset='USDT')
-        return float(balance['free'])
-    else:
-        balances = client.futures_account_balance()
-        for b in balances:
-            if b['asset'] == 'USDT':
-                return float(b['balance'])
-        return 0.0
-
 def calculate_order_amount(price):
     usdt = get_balance()
     return round((usdt * ORDER_PCT) / price, 3)
