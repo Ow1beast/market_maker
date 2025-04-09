@@ -1,15 +1,21 @@
+from telegram import ReplyKeyboardMarkup
 from telegram.ext import Updater, CommandHandler
 from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
 import sys
 
-# Эти переменные мы передадим извне
 client = None
 TRADE_MODE = None
 
 def start(update, context):
-    update.message.reply_text("Команды: /status /pnl_today /pnl_table /balance /restart")
+    keyboard = [
+        ["/status", "/balance"],
+        ["/pnl_today", "/pnl_table"],
+        ["/restart"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    update.message.reply_text("Команды:", reply_markup=reply_markup)
 
 def pnl_today(update, context):
     pnl, count = get_today_pnl()
@@ -55,7 +61,6 @@ def balance(update, context):
     except Exception as e:
         update.message.reply_text(f"❌ Ошибка при получении баланса: {e}")
 
-# ✅ Теперь run_bot принимает client и TRADE_MODE
 def run_bot(binance_client, trade_mode):
     global client, TRADE_MODE
     client = binance_client
