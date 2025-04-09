@@ -10,7 +10,7 @@ from datetime import datetime
 from loguru import logger
 from db import init_db, save_trade
 from threading import Thread
-from bot_commands import run_bot, get_balance
+from bot_commands import run_bot, get_balance, place_grid_orders
 
 # === Загрузка .env ===
 load_dotenv()
@@ -74,23 +74,6 @@ def cancel_orders():
     else:
         client.futures_cancel_all_open_orders(symbol=SYMBOL)
     logger.info("[Ордера] Все заявки отменены")
-
-def place_orders(bid, ask):
-    mid_price = (bid + ask) / 2
-    spread = max(mid_price * BASE_SPREAD, 0.5)
-    buy_price = round(mid_price - spread, 1)
-    sell_price = round(mid_price + spread, 1)
-    qty = calculate_order_amount(mid_price)
-
-    if TRADE_MODE == 'spot':
-        client.order_limit_buy(symbol=SYMBOL, quantity=qty, price=str(buy_price))
-        client.order_limit_sell(symbol=SYMBOL, quantity=qty, price=str(sell_price))
-    else:
-        client.futures_create_order(symbol=SYMBOL, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
-        client.futures_create_order(symbol=SYMBOL, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
-
-    logger.info(f"[Ордера] BUY {buy_price}, SELL {sell_price}, QTY {qty}")
-    send_telegram(f"[{TRADE_MODE.upper()}] BUY {buy_price}, SELL {sell_price}, QTY {qty}")
 
 # === PnL логика ===
 def get_last_trade_id():
@@ -166,7 +149,8 @@ async def main_loop():
         try:
             bid, ask = await get_order_book()
             cancel_orders()
-            place_orders(bid, ask)
+            mid_price = (bid + ask) / 2
+            place_grid_orders(mid_price)
             track_trades_and_pnl()
             await asyncio.sleep(INTERVAL)
         except Exception as e:
