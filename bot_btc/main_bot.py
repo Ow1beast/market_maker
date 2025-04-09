@@ -30,6 +30,12 @@ SYSTEMD_SERVICE = os.getenv("SYSTEMD_SERVICE", "marketmaker.service")
 
 client = Client(API_KEY, API_SECRET)
 
+if os.getenv("TESTNET") == "true":
+    if TRADE_MODE == "futures":
+        client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+    else:
+        client.API_URL = "https://testnet.binance.vision/api"
+
 os.makedirs("logs", exist_ok=True)
 log_file = f"logs/{datetime.now().strftime('%Y-%m-%d')}_{TRADE_MODE}.log"
 logger.add(log_file, rotation="5 MB", retention="7 days", encoding='utf-8')
