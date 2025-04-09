@@ -10,7 +10,7 @@ from datetime import datetime
 from loguru import logger
 from db import init_db, save_trade
 from threading import Thread
-from bot_commands import run_bot
+from bot_commands import run_bot, get_balance
 
 # === Загрузка .env ===
 load_dotenv()
@@ -178,5 +178,5 @@ if __name__ == '__main__':
     init_db()
     logger.info(f"[Старт] Бот запущен в режиме {TRADE_MODE.upper()}")
     send_telegram(f"Маркет-мейкер запущен. Режим: {TRADE_MODE.upper()}, trade_id: {SESSION_START_ID}")
-    Thread(target=run_bot).start()
+    Thread(target=run_bot, args=(client, TRADE_MODE)).start()
     asyncio.run(main_loop())
