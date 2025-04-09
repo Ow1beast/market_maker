@@ -4,9 +4,11 @@ from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
 import sys
+from datetime import datetime
 
 client = None
 TRADE_MODE = None
+
 
 def start(update, context):
     keyboard = [
@@ -17,9 +19,11 @@ def start(update, context):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text("Команды:", reply_markup=reply_markup)
 
+
 def pnl_today(update, context):
     pnl, count = get_today_pnl()
     update.message.reply_text(f"Сегодняшний PnL: {pnl:.2f} USDT\nСделок: {count}")
+
 
 def pnl_table(update, context):
     rows = get_pnl_history(7)
@@ -32,6 +36,7 @@ def pnl_table(update, context):
         msg += f"{date_str}  |  {pnl_fmt} USDT\n"
     update.message.reply_text(msg)
 
+
 def get_balance():
     if TRADE_MODE == 'spot':
         balance = client.get_asset_balance(asset='USDT')
@@ -43,8 +48,19 @@ def get_balance():
                 return float(b['balance'])
         return 0.0
 
+
+def save_daily_start_balance():
+    today = datetime.now().strftime('%Y-%m-%d')
+    path = f"start_balance_{today}.txt"
+    if not os.path.exists(path):
+        balance = get_balance()
+        with open(path, "w") as f:
+            f.write(str(balance))
+
+
 def status(update, context):
     update.message.reply_text("✅ Бот работает.")
+
 
 def restart(update, context):
     update.message.reply_text("♻️ Перезапуск бота (внутри контейнера)...")
@@ -54,6 +70,7 @@ def restart(update, context):
     except Exception as e:
         update.message.reply_text(f"❌ Ошибка при перезапуске: {e}")
 
+
 def balance(update, context):
     try:
         usdt = get_balance()
@@ -61,10 +78,13 @@ def balance(update, context):
     except Exception as e:
         update.message.reply_text(f"❌ Ошибка при получении баланса: {e}")
 
+
 def run_bot(binance_client, trade_mode):
     global client, TRADE_MODE
     client = binance_client
     TRADE_MODE = trade_mode
+
+    save_daily_start_balance()
 
     token = os.getenv("TG_TOKEN")
     updater = Updater(token, use_context=True)
