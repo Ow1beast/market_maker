@@ -2,6 +2,7 @@ from telegram.ext import Updater, CommandHandler
 from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
+from main_bot import TRADE_MODE, client, SYMBOL, get_balance
 
 def start(update, context):
     update.message.reply_text("Команды: /status /pnl_today /pnl_table /restart")
@@ -26,12 +27,19 @@ def status(update, context):
     update.message.reply_text("✅ Бот работает.")
 
 def restart(update, context):
-    update.message.reply_text("♻️ Перезапуск бота...")
+    update.message.reply_text("♻️ Перезапуск бота (внутри контейнера)...")
     try:
-        service_name = os.getenv("SYSTEMD_SERVICE", "marketmaker.service")
-        subprocess.Popen(["sudo", "systemctl", "restart", service_name])
+        python = sys.executable
+        os.execv(python, [python] + sys.argv)
     except Exception as e:
         update.message.reply_text(f"❌ Ошибка при перезапуске: {e}")
+
+def balance(update, context):
+    try:
+        usdt = get_balance()
+        update.message.reply_text(f"💰 Баланс USDT: {usdt:.2f}\nРежим: {TRADE_MODE.upper()}")
+    except Exception as e:
+        update.message.reply_text(f"❌ Ошибка при получении баланса: {e}")
 
 def run_bot():
     token = os.getenv("TG_TOKEN")
@@ -43,6 +51,7 @@ def run_bot():
     dp.add_handler(CommandHandler("pnl_table", pnl_table))
     dp.add_handler(CommandHandler("status", status))
     dp.add_handler(CommandHandler("restart", restart))
+    dp.add_handler(CommandHandler("balance", balance))
 
     updater.start_polling()
     updater.idle()
