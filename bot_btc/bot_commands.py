@@ -130,3 +130,24 @@ def generate_grid_prices(mid_price, spread_step=GRID_STEP, levels=GRID_LEVELS):
         sell = round(mid_price + i * spread_step, 2)
         prices.append((buy, sell))
     return prices
+
+def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
+    from loguru import logger
+    usdt = float(get_balance(client, trade_mode))
+    qty = round((usdt * order_pct) / mid_price, 3)
+    step = 0.25
+    levels = 3
+    for i in range(1, levels + 1):
+        buy_price = round(mid_price - i * step, 2)
+        sell_price = round(mid_price + i * step, 2)
+        try:
+            if trade_mode == 'spot':
+                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
+                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(sell_price))
+            else:
+                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
+                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
+            logger.info(f"[{symbol}] Ордер BUY {buy_price}, SELL {sell_price}, QTY {qty}")
+        except Exception as e:
+            logger.error(f"[{symbol}] Ошибка при размещении ордера: {e}")
+
