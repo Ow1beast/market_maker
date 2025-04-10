@@ -135,7 +135,10 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
     filters = {f['filterType']: f for f in info['filters']}
     min_qty = float(filters['LOT_SIZE']['minQty'])
     step_size = float(filters['LOT_SIZE']['stepSize'])
-    min_notional = float(filters['MIN_NOTIONAL'].get('notional', filters['MIN_NOTIONAL'].get('minNotional', 10)))
+    min_notional = 10  # значение по умолчанию
+    if 'MIN_NOTIONAL' in filters:
+        min_notional = float(filters['MIN_NOTIONAL'].get('minNotional', 10))
+
     precision = abs(int(round(log10(step_size))))
 
     usdt = get_balance(symbol)
