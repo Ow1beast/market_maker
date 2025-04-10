@@ -158,6 +158,10 @@ async def run_symbol(symbol):
         try:
             bid, ask = await get_order_book(symbol, trade_mode, use_testnet)
             mid_price = (bid + ask) / 2
+            usdt = get_balance(symbol)
+            order_value = usdt * ORDER_PCT
+            qty = round(order_value / mid_price, 6)
+            send_telegram(f"[{symbol}] Баланс: {usdt:.2f} USDT, Ордер на: {order_value:.2f} USDT ({qty:.6f} {symbol[:-4]})")
             place_grid_orders(client, trade_mode, symbol, mid_price, ORDER_PCT)
             track_trades_and_pnl(symbol)
             await asyncio.sleep(INTERVAL)
