@@ -134,7 +134,7 @@ def generate_grid_prices(mid_price, spread_step=GRID_STEP, levels=GRID_LEVELS):
 def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
     from loguru import logger
     usdt = float(get_balance(symbol))
-    qty = round((usdt * order_pct) / mid_price, 3)
+    qty = max(round((usdt * order_pct) / mid_price, 6), 0.0001)
     step = 0.25
     levels = 3
     for i in range(1, levels + 1):
