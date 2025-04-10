@@ -61,7 +61,7 @@ def restart(update, context):
     if context.args:
         symbol = context.args[0].upper()
         service = f"marketmaker-{symbol.lower()}.service"
-        os.system(f"sudo systemctl restart {service}")
+        os.system(f"systemctl restart {service}")
         update.message.reply_text(f"♻️ Перезапущен бот {symbol}")
     else:
         update.message.reply_text("Укажи символ: /restart BTC")
