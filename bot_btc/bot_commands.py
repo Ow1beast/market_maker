@@ -18,9 +18,9 @@ SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,SOLUSDT,ETHUSDT").split(',')
 
 def start(update, context):
     keyboard = [
-        ["/status BTC", "/balance BTC"],
-        ["/pnl_today BTC", "/pnl_table BTC"],
-        ["/restart BTC"]
+        ["/status BTCUSDT", "/balance BTCUSDT"],
+        ["/pnl_today BTCUSDT", "/pnl_table BTCUSDT"],
+        ["/restart BTCUSDT"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text("Команды с указанием символа: например, /balance BTC", reply_markup=reply_markup)

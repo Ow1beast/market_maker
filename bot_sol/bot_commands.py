@@ -18,12 +18,12 @@ SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,SOLUSDT,ETHUSDT").split(',')
 
 def start(update, context):
     keyboard = [
-        ["/status BTC", "/balance BTC"],
-        ["/pnl_today BTC", "/pnl_table BTC"],
-        ["/restart BTC"]
+        ["/status SOLUSDT", "/balance SOLUSDT"],
+        ["/pnl_today SOLUSDT", "/pnl_table SOLUSDT"],
+        ["/restart SOLUSDT"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    update.message.reply_text("Команды с указанием символа: например, /balance BTC", reply_markup=reply_markup)
+    update.message.reply_text("Команды с указанием символа: например, /balance SOLUSDT", reply_markup=reply_markup)
 
 
 def get_balance(symbol):
@@ -54,7 +54,7 @@ def status(update, context):
         symbol = context.args[0].upper()
         update.message.reply_text(f"✅ Бот для {symbol} работает.")
     else:
-        update.message.reply_text("Укажи символ: /status BTC")
+        update.message.reply_text("Укажи символ: /status SOLUSDT")
 
 
 def restart(update, context):
@@ -64,7 +64,7 @@ def restart(update, context):
         os.system(f"sudo systemctl restart {service}")
         update.message.reply_text(f"♻️ Перезапущен бот {symbol}")
     else:
-        update.message.reply_text("Укажи символ: /restart BTC")
+        update.message.reply_text("Укажи символ: /restart SOLUSDT")
 
 
 def balance(update, context):
@@ -76,7 +76,7 @@ def balance(update, context):
         except Exception as e:
             update.message.reply_text(f"❌ Ошибка: {e}")
     else:
-        update.message.reply_text("Укажи символ: /balance BTC")
+        update.message.reply_text("Укажи символ: /balance SOLUSDT")
 
 
 def pnl_today(update, context):
@@ -85,7 +85,7 @@ def pnl_today(update, context):
         pnl, count = get_today_pnl(symbol)
         update.message.reply_text(f"Сегодняшний PnL для {symbol}: {pnl:.2f} USDT\nСделок: {count}")
     else:
-        update.message.reply_text("Укажи символ: /pnl_today BTC")
+        update.message.reply_text("Укажи символ: /pnl_today SOLUSDT")
 
 
 def pnl_table(update, context):
@@ -101,7 +101,7 @@ def pnl_table(update, context):
             msg += f"{date_str}  |  {pnl_fmt} USDT\n"
         update.message.reply_text(msg)
     else:
-        update.message.reply_text("Укажи символ: /pnl_table BTC")
+        update.message.reply_text("Укажи символ: /pnl_table SOLUSDT")
 
 
 def run_bot(bot_token, clients_dict, trade_modes_dict):
