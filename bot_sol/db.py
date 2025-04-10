@@ -40,7 +40,7 @@ def save_trade(trade_id, mode, symbol, side, price, qty):
     conn.commit()
     conn.close()
 
-def get_today_pnl():
+def get_today_pnl(symbol):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     today = datetime.utcnow().date().isoformat()
@@ -63,7 +63,7 @@ def get_today_pnl():
     total_trades = sum(r[2] for r in rows)
     return pnl, total_trades
 
-def get_pnl_history(limit=7):
+def get_pnl_history(symbol, limit=7):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
