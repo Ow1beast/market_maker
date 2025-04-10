@@ -8,12 +8,3 @@ services:
     volumes:
       - ./logs:/app/logs
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      custom_net:
-
-networks:
-  custom_net:
-    driver: bridge
