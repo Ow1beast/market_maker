@@ -129,10 +129,23 @@ def generate_grid_prices(mid_price, spread_step=GRID_STEP, levels=GRID_LEVELS):
         prices.append((buy, sell))
     return prices
 
+# === Основной цикл по символу ===
 def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
-    from loguru import logger
-    usdt = float(get_balance(symbol))
-    qty = max(round((usdt * order_pct) / mid_price, 6), 0.0001)
+    info = client.get_symbol_info(symbol)
+    filters = {f['filterType']: f for f in info['filters']}
+    min_qty = float(filters['LOT_SIZE']['minQty'])
+    step_size = float(filters['LOT_SIZE']['stepSize'])
+    min_notional = float(filters['MIN_NOTIONAL'].get('notional', filters['MIN_NOTIONAL'].get('minNotional', 10)))
+    precision = abs(int(round(log10(step_size))))
+
+    usdt = get_balance(symbol)
+    order_value = usdt * order_pct
+    qty = round(order_value / mid_price, precision)
+
+    if qty < min_qty or order_value < min_notional:
+        logger.warning(f"[{symbol}] Пропущен: qty={qty}, min_qty={min_qty}, value={order_value:.2f}, min_notional={min_notional}")
+        return
+
     step = 0.25
     levels = 3
     for i in range(1, levels + 1):
