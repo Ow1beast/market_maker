@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import datetime
 from math import log10
+from loguru import logger
 
 client_instances = {}
 TRADE_MODES = {}
