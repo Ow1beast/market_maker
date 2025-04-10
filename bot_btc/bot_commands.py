@@ -56,13 +56,11 @@ def status(update, context):
     else:
         update.message.reply_text("Укажи символ: /status BTC")
 
-
 def restart(update, context):
     if context.args:
         symbol = context.args[0].upper()
-        service = f"marketmaker-{symbol.lower()}.service"
-        os.system(f"systemctl restart {service}")
         update.message.reply_text(f"♻️ Перезапущен бот {symbol}")
+        os._exit(0)  # завершает процесс — Docker перезапустит
     else:
         update.message.reply_text("Укажи символ: /restart BTC")
 
