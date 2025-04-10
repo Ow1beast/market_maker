@@ -47,13 +47,13 @@ def get_today_pnl(symbol):
     cursor.execute("""
         SELECT side, SUM(cost), COUNT(*)
         FROM trades
-        WHERE date(timestamp) = ?
+        WHERE date(timestamp) = ? AND symbol = ?
         GROUP BY side
-    """, (today,))
+    """, (today, symbol))
     rows = cursor.fetchall()
     conn.close()
 
-    total_buy = total_sell = qty = 0
+    total_buy = total_sell = 0
     for row in rows:
         if row[0] == 'BUY':
             total_buy = row[1]
@@ -71,10 +71,11 @@ def get_pnl_history(symbol, limit=7):
                SUM(CASE WHEN side='SELL' THEN cost ELSE 0 END) -
                SUM(CASE WHEN side='BUY' THEN cost ELSE 0 END) as pnl
         FROM trades
+        WHERE symbol = ?
         GROUP BY date(timestamp)
         ORDER BY date(timestamp) DESC
         LIMIT ?
-    """, (limit,))
+    """, (symbol, limit))
     rows = cursor.fetchall()
     conn.close()
     return list(reversed(rows))
