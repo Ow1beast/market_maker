@@ -4,9 +4,11 @@ from db import get_today_pnl, get_pnl_history
 import os
 import subprocess
 import sys
+import signal
 from datetime import datetime
 from math import log10
 from loguru import logger
+
 
 client_instances = {}
 TRADE_MODES = {}
@@ -44,7 +46,6 @@ def get_balance(symbol):
                 return float(b['balance'])
         return 0.0
 
-
 def save_daily_start_balance(symbol):
     today = datetime.now().strftime('%Y-%m-%d')
     path = f"start_balance_{symbol}_{today}.txt"
@@ -52,7 +53,6 @@ def save_daily_start_balance(symbol):
         balance = get_balance(symbol)
         with open(path, "w") as f:
             f.write(str(balance))
-
 
 def status(update, context):
     if context.args:
@@ -65,10 +65,9 @@ def restart(update, context):
     if context.args:
         symbol = context.args[0].upper()
         update.message.reply_text(f"♻️ Перезапущен бот {symbol}")
-        os._exit(0)  # завершает процесс — Docker перезапустит
+        os.kill(os.getpid(), signal.SIGTERM)  # мягкий выход, Docker перезапустит
     else:
         update.message.reply_text("Укажи символ: /restart BTC")
-
 
 def balance(update, context):
     if context.args:
@@ -81,7 +80,6 @@ def balance(update, context):
     else:
         update.message.reply_text("Укажи символ: /balance BTC")
 
-
 def pnl_today(update, context):
     if context.args:
         symbol = context.args[0].upper()
@@ -89,7 +87,6 @@ def pnl_today(update, context):
         update.message.reply_text(f"Сегодняшний PnL для {symbol}: {pnl:.2f} USDT\nСделок: {count}")
     else:
         update.message.reply_text("Укажи символ: /pnl_today BTC")
-
 
 def pnl_table(update, context):
     if context.args:
