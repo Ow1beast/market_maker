@@ -27,6 +27,8 @@ def start(update, context):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text("Команды с указанием символа: например, /balance BTC", reply_markup=reply_markup)
 
+def round_price(price, step):
+    return round(round(price / step) * step, 8)
 
 def get_balance(symbol):
     client = client_instances[symbol]
@@ -136,6 +138,7 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
     filters = {f['filterType']: f for f in info['filters']}
     min_qty = float(filters['LOT_SIZE']['minQty'])
     step_size = float(filters['LOT_SIZE']['stepSize'])
+    tick_size = float(filters['PRICE_FILTER']['tickSize'])
 
     min_notional = 10  # значение по умолчанию
     if 'MIN_NOTIONAL' in filters:
@@ -157,8 +160,8 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
 
     if use_spread:
         for i in range(1, levels + 1):
-            buy_price = round(mid_price - i * step, 2)
-            sell_price = round(mid_price + i * step, 2)
+            buy_price = round_price(mid_price - i * step, tick_size)
+            sell_price = round_price(mid_price + i * step, tick_size)
             try:
                 if trade_mode == 'spot':
                     client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
@@ -170,14 +173,15 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
             except Exception as e:
                 logger.error(f"[{symbol}] Ошибка при размещении ордера: {e}")
     else:
+        price = round_price(mid_price, tick_size)
         try:
             if trade_mode == 'spot':
-                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(mid_price))
-                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(mid_price))
+                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(price))
+                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(price))
             else:
-                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(mid_price), quantity=qty, timeInForce='GTC')
-                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(mid_price), quantity=qty, timeInForce='GTC')
-            logger.info(f"[{symbol}] Ордера без спреда по цене {mid_price}, QTY {qty}")
+                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
+                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
+            logger.info(f"[{symbol}] Ордера без спреда по цене {price}, QTY {qty}")
         except Exception as e:
             logger.error(f"[{symbol}] Ошибка при размещении ордеров без спреда: {e}")
 
