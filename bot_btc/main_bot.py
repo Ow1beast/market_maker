@@ -28,9 +28,14 @@ for symbol in symbols:
 
     if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
         if trade_mode == "futures":
-            client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+            if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
+                client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
+            else:
+                client.FUTURES_URL = "https://fapi.binance.com/fapi"
         else:
-            client.API_URL = "https://testnet.binance.vision/api"
+            if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
+                client.API_URL = "https://testnet.binance.vision/api"
+
 
     clients[symbol] = client
     modes[symbol] = trade_mode
