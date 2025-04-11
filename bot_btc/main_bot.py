@@ -68,10 +68,17 @@ async def get_order_book(symbol, trade_mode, use_testnet):
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(url) as ws:
             async for msg in ws:
-                data = json.loads(msg.data)
-                bid = float(data['bids'][0][0])
-                ask = float(data['asks'][0][0])
-                return bid, ask
+                try:
+                    data = json.loads(msg.data)
+                    if 'bids' in data and 'asks' in data:
+                        bid = float(data['bids'][0][0])
+                        ask = float(data['asks'][0][0])
+                        return bid, ask
+                    else:
+                        continue  # пропускаем пустые или системные сообщения
+                except Exception as e:
+                    logger.warning(f"[{symbol}] Невалидное сообщение в стакане: {e}")
+
 
 # === PnL логика ===
 def get_last_trade_id(symbol):
