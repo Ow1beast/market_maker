@@ -20,10 +20,11 @@ SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,SOLUSDT,ETHUSDT").split(',')
 
 def start(update, context):
     keyboard = [
-        ["/status BTCUSDT", "/balance BTCUSDT"],
-        ["/pnl_today BTCUSDT", "/pnl_table BTCUSDT"],
-        ["/restart BTCUSDT"]
+    ["/status BTCUSDT", "/balance BTCUSDT"],
+    ["/pnl_today BTCUSDT", "/pnl_table BTCUSDT"],
+    ["/restart BTCUSDT", "/stop BTCUSDT"]
     ]
+
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text("Команды с указанием символа: например, /balance BTC", reply_markup=reply_markup)
 
@@ -120,6 +121,7 @@ def run_bot(bot_token, clients_dict, trade_modes_dict):
     dp.add_handler(CommandHandler("status", status))
     dp.add_handler(CommandHandler("restart", restart))
     dp.add_handler(CommandHandler("balance", balance))
+    dp.add_handler(CommandHandler("stop", stop))
 
     updater.start_polling()
 
@@ -185,3 +187,21 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
         except Exception as e:
             logger.error(f"[{symbol}] Ошибка при размещении ордеров без спреда: {e}")
 
+def stop(update, context):
+    if context.args:
+        symbol = context.args[0].upper()
+        try:
+            client = client_instances[symbol]
+            mode = TRADE_MODES[symbol]
+            if mode == 'spot':
+                orders = client.get_open_orders(symbol=symbol)
+                for o in orders:
+                    client.cancel_order(symbol=symbol, orderId=o['orderId'])
+            else:
+                client.futures_cancel_all_open_orders(symbol=symbol)
+            update.message.reply_text(f"🛑 Бот {symbol} остановлен. Все ордера удалены.")
+            os._exit(0)  # завершает процесс
+        except Exception as e:
+            update.message.reply_text(f"❌ Ошибка при остановке: {e}")
+    else:
+        update.message.reply_text("Укажи символ: /stop BTC")
