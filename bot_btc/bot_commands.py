@@ -151,19 +151,33 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
         logger.warning(f"[{symbol}] Пропущен: qty={qty}, min_qty={min_qty}, value={order_value:.2f}, min_notional={min_notional}")
         return
 
+    use_spread = os.getenv("USE_SPREAD", "true").lower() == "true"
     step = 0.25
     levels = 3
-    for i in range(1, levels + 1):
-        buy_price = round(mid_price - i * step, 2)
-        sell_price = round(mid_price + i * step, 2)
+
+    if use_spread:
+        for i in range(1, levels + 1):
+            buy_price = round(mid_price - i * step, 2)
+            sell_price = round(mid_price + i * step, 2)
+            try:
+                if trade_mode == 'spot':
+                    client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
+                    client.order_limit_sell(symbol=symbol, quantity=qty, price=str(sell_price))
+                else:
+                    client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
+                    client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
+                logger.info(f"[{symbol}] Ордер BUY {buy_price}, SELL {sell_price}, QTY {qty}")
+            except Exception as e:
+                logger.error(f"[{symbol}] Ошибка при размещении ордера: {e}")
+    else:
         try:
             if trade_mode == 'spot':
-                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
-                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(sell_price))
+                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(mid_price))
+                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(mid_price))
             else:
-                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
-                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
-            logger.info(f"[{symbol}] Ордер BUY {buy_price}, SELL {sell_price}, QTY {qty}")
+                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(mid_price), quantity=qty, timeInForce='GTC')
+                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(mid_price), quantity=qty, timeInForce='GTC')
+            logger.info(f"[{symbol}] Ордера без спреда по цене {mid_price}, QTY {qty}")
         except Exception as e:
-            logger.error(f"[{symbol}] Ошибка при размещении ордера: {e}")
+            logger.error(f"[{symbol}] Ошибка при размещении ордеров без спреда: {e}")
 
