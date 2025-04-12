@@ -133,8 +133,17 @@ def generate_grid_prices(mid_price, spread_step=GRID_STEP, levels=GRID_LEVELS):
     return prices
 
 def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
-    info = client.get_symbol_info(symbol)
-    filters = {f['filterType']: f for f in info['filters']}
+    if trade_mode == 'spot':
+        info = client.get_symbol_info(symbol)
+        filters = {f['filterType']: f for f in info['filters']}
+    else:
+        info = client.futures_exchange_info()
+        symbol_info = next((s for s in info['symbols'] if s['symbol'] == symbol), None)
+        if not symbol_info:
+            logger.error(f"[{symbol}] Не найдено в futures_exchange_info")
+            return
+        filters = {f['filterType']: f for f in symbol_info['filters']}
+        
     min_qty = float(filters['LOT_SIZE']['minQty'])
     step_size = float(filters['LOT_SIZE']['stepSize'])
     tick_size = float(filters['PRICE_FILTER']['tickSize'])
