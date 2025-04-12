@@ -137,26 +137,33 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
         info = client.get_symbol_info(symbol)
         filters = {f['filterType']: f for f in info['filters']}
     else:
-        info = client.futures_exchange_info()
-        symbol_info = next((s for s in info['symbols'] if s['symbol'] == symbol), None)
-        if not symbol_info:
-            logger.error(f"[{symbol}] Не найдено в futures_exchange_info")
+        try:
+            info = client.futures_exchange_info()
+            symbol_info = next((s for s in info['symbols'] if s['symbol'] == symbol), None)
+            if not symbol_info:
+                logger.error(f"[{symbol}] Не найдено в futures_exchange_info")
+                return
+            filters = {f['filterType']: f for f in symbol_info['filters']}
+        except Exception as e:
+            logger.error(f"[{symbol}] Ошибка при получении futures_exchange_info: {e}")
             return
-        filters = {f['filterType']: f for f in symbol_info['filters']}
-        
-    min_qty = float(filters['LOT_SIZE']['minQty'])
-    step_size = float(filters['LOT_SIZE']['stepSize'])
-    tick_size = float(filters['PRICE_FILTER']['tickSize'])
 
-    min_notional = 10  # значение по умолчанию
-    if 'MIN_NOTIONAL' in filters:
-        min_notional = float(filters['MIN_NOTIONAL'].get('minNotional', 10))
+    try:
+        min_qty = float(filters['LOT_SIZE']['minQty'])
+        step_size = float(filters['LOT_SIZE']['stepSize'])
+        tick_size = float(filters['PRICE_FILTER']['tickSize'])
+        min_notional = float(filters.get('MIN_NOTIONAL', {}).get('minNotional', 10))
+    except Exception as e:
+        logger.error(f"[{symbol}] Ошибка при обработке фильтров: {e}")
+        return
 
     precision = abs(int(round(log10(step_size))))
 
     usdt = get_balance(symbol)
     order_value = usdt * order_pct
     qty = round(order_value / mid_price, precision)
+
+    logger.info(f"[{symbol}] Подготовка ордера: qty={qty}, value={order_value:.2f}, min_qty={min_qty}, min_notional={min_notional}")
 
     if qty < min_qty or order_value < min_notional:
         logger.warning(f"[{symbol}] Пропущен: qty={qty}, min_qty={min_qty}, value={order_value:.2f}, min_notional={min_notional}")
@@ -172,24 +179,28 @@ def place_grid_orders(client, trade_mode, symbol, mid_price, order_pct):
             sell_price = round_price(mid_price + i * step, tick_size)
             try:
                 if trade_mode == 'spot':
-                    client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
-                    client.order_limit_sell(symbol=symbol, quantity=qty, price=str(sell_price))
+                    r1 = client.order_limit_buy(symbol=symbol, quantity=qty, price=str(buy_price))
+                    r2 = client.order_limit_sell(symbol=symbol, quantity=qty, price=str(sell_price))
                 else:
-                    client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
-                    client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
-                logger.info(f"[{symbol}] Ордер BUY {buy_price}, SELL {sell_price}, QTY {qty}")
+                    r1 = client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(buy_price), quantity=qty, timeInForce='GTC')
+                    r2 = client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(sell_price), quantity=qty, timeInForce='GTC')
+                logger.info(f"[{symbol}] BUY {buy_price}, SELL {sell_price}, QTY {qty}")
+                logger.debug(f"[{symbol}] Ответ Binance BUY: {r1}")
+                logger.debug(f"[{symbol}] Ответ Binance SELL: {r2}")
             except Exception as e:
                 logger.error(f"[{symbol}] Ошибка при размещении ордера: {e}")
     else:
         price = round_price(mid_price, tick_size)
         try:
             if trade_mode == 'spot':
-                client.order_limit_buy(symbol=symbol, quantity=qty, price=str(price))
-                client.order_limit_sell(symbol=symbol, quantity=qty, price=str(price))
+                r1 = client.order_limit_buy(symbol=symbol, quantity=qty, price=str(price))
+                r2 = client.order_limit_sell(symbol=symbol, quantity=qty, price=str(price))
             else:
-                client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
-                client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
-            logger.info(f"[{symbol}] Ордера без спреда по цене {price}, QTY {qty}")
+                r1 = client.futures_create_order(symbol=symbol, side='BUY', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
+                r2 = client.futures_create_order(symbol=symbol, side='SELL', type='LIMIT', price=str(price), quantity=qty, timeInForce='GTC')
+            logger.info(f"[{symbol}] Без спреда по {price}, QTY {qty}")
+            logger.debug(f"[{symbol}] Ответ Binance BUY: {r1}")
+            logger.debug(f"[{symbol}] Ответ Binance SELL: {r2}")
         except Exception as e:
             logger.error(f"[{symbol}] Ошибка при размещении ордеров без спреда: {e}")
 

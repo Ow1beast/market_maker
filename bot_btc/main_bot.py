@@ -31,7 +31,7 @@ for symbol in symbols:
             if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
                 client.FUTURES_URL = "https://testnet.binancefuture.com/fapi"
             else:
-                client.FUTURES_URL = "https://fapi.binance.com/fapi"
+                client.FUTURES_URL = "https://fapi.binance.com"
         else:
             if os.getenv(f"{symbol}_TESTNET", "false").lower() == "true":
                 client.API_URL = "https://testnet.binance.vision/api"
