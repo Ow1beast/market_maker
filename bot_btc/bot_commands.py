@@ -9,7 +9,8 @@ from datetime import datetime
 from math import log10
 from loguru import logger
 
-
+logger.remove()
+logger.add(sys.stdout, level="DEBUG")  
 client_instances = {}
 TRADE_MODES = {}
 
