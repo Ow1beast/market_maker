@@ -185,7 +185,7 @@ async def run_symbol(symbol):
 if __name__ == '__main__':
     init_db()
     logger.info(f"[Старт] Универсальный Telegram-бот запущен для: {', '.join(symbols)}")
-    Thread(target=run_bot, args=(TG_TOKEN, clients, modes)).start()
+    Thread(target=run_bot, args=(TG_TOKEN, clients, modes), daemon=True).start()
     loop = asyncio.get_event_loop()
     tasks = [run_symbol(symbol) for symbol in symbols]
     loop.run_until_complete(asyncio.gather(*tasks))

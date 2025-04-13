@@ -66,7 +66,9 @@ def restart(update, context):
     if context.args:
         symbol = context.args[0].upper()
         update.message.reply_text(f"♻️ Перезапущен бот {symbol}")
-        os.kill(os.getpid(), signal.SIGTERM)  # мягкий выход, Docker перезапустит
+        import sys
+        logger.info(f"[{symbol}] Рестарт — завершаем процесс.")
+        sys.exit(0) # мягкий выход, Docker перезапустит
     else:
         update.message.reply_text("Укажи символ: /restart BTC")
 
