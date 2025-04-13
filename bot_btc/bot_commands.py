@@ -219,9 +219,13 @@ def stop(update, context):
                     client.cancel_order(symbol=symbol, orderId=o['orderId'])
             else:
                 client.futures_cancel_all_open_orders(symbol=symbol)
+
             update.message.reply_text(f"🛑 Бот {symbol} остановлен. Все ордера удалены.")
-            os._exit(0)  # завершает процесс
+            logger.info(f"[{symbol}] Завершаем процесс по команде /stop")
+            import sys
+            sys.exit(0)  # завершает всё приложение, Docker перезапустит если настроено
         except Exception as e:
             update.message.reply_text(f"❌ Ошибка при остановке: {e}")
     else:
         update.message.reply_text("Укажи символ: /stop BTC")
+
